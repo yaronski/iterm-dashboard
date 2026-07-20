@@ -19,16 +19,96 @@ A macOS menu bar app that shows all open iTerm2 windows grouped by project works
 - **Tree connectors** — pixel-drawn tree lines for visual hierarchy
 - **System insights** — warnings for high memory, dirty files, unpushed commits, stale instances
 - **Auto-refresh** — updates every 30 seconds, plus on menu open
+- **Configurable sidebar strip** — hide or set transparency of the 2px accent strip via the status bar menu (persisted)
 
 ## Install
 
-No dependencies beyond the system Python 3 and PyObjC (ships with macOS).
+No dependencies beyond Python 3 and PyObjC.
 
 ```bash
 open iTermDashboard.app
 ```
 
 To launch on login, add `iTermDashboard.app` to System Settings > General > Login Items.
+
+## Manual Setup (clone install on macOS)
+
+If you cloned this repo (rather than downloading a pre-built `.app`), follow these steps once. Tested on macOS with Homebrew Python and a non-English system locale (de_DE).
+
+### 1. Create a virtualenv and install PyObjC
+
+```bash
+cd /Applications/iterm-dashboard          # or wherever you cloned
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz
+```
+
+### 2. Test it runs
+
+```bash
+.venv/bin/python iTermDashboard.app/Contents/MacOS/itermdashboard
+```
+
+A status bar icon (">_") should appear top-right. `Ctrl-C` does **not** quit — run `pkill -f itermdashboard` instead, or use `open` (next step).
+
+### 3. Make `open` work (fix the shebang)
+
+The bundled shebang is `#!/usr/bin/env python3`, which resolves to the system Python — and the system Python does **not** have PyObjC. Point it at your venv Python instead:
+
+```bash
+sed -i '' '1s|.*|#'"$(pwd)/.venv/bin/python3"'|' \
+  iTermDashboard.app/Contents/MacOS/itermdashboard
+
+# Verify
+head -1 iTermDashboard.app/Contents/MacOS/itermdashboard
+# → #!/Applications/iterm-dashboard/.venv/bin/python3
+```
+
+Now `open` works:
+
+```bash
+open iTermDashboard.app
+```
+
+> **Note:** `git pull` overwrites this change. Re-run the `sed` command after each pull, or add an alias:
+> ```bash
+> echo 'alias fix-shebang="sed -i '\'''\'' '\''1s|.*|#'"$(pwd)"'/.venv/bin/python3|'\'' iTermDashboard.app/Contents/MacOS/itermdashboard"' >> ~/.zshrc
+> ```
+
+### 4. Launch on login (autostart)
+
+Add the `.app` to login items:
+
+**System Settings → General → Login Items → +** → select `iTermDashboard.app`.
+
+Alternatively, a LaunchAgent (auto-restarts after crashes, uses venv Python directly):
+
+```bash
+cat > ~/Library/LaunchAgents/com.deepai.itermdashboard.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.deepai.itermdashboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/iterm-dashboard/.venv/bin/python</string>
+        <string>/Applications/iterm-dashboard/iTermDashboard.app/Contents/MacOS/itermdashboard</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+launchctl load ~/Library/LaunchAgents/com.deepai.itermdashboard.plist
+```
+
+Adjust the absolute paths if you cloned elsewhere.
 
 ## Useful Commands
 
