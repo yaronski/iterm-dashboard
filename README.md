@@ -54,7 +54,17 @@ A status bar icon (">_") should appear top-right. `Ctrl-C` does **not** quit —
 
 ### 3. Make `open` work (fix the shebang)
 
-The bundled shebang is `#!/usr/bin/env python3`, which resolves to the system Python — and the system Python does **not** have PyObjC. Point it at your venv Python instead:
+The bundled shebang is `#!/usr/bin/env python3`. This resolves differently depending on context:
+
+| Context | Resolves to | PyObjC? | Result |
+|---------|-------------|:-------:|--------|
+| Terminal (Homebrew in `PATH`) | `/opt/homebrew/bin/python3` | ✅ | App runs |
+| `open` from Terminal | `/opt/homebrew/bin/python3` | ✅ | App runs |
+| **Login Items (boot)** | `/usr/bin/python3` (system) | ❌ | **Silent crash** |
+
+At boot, Login Items launch with a minimal `PATH` that excludes `/opt/homebrew/bin`, so `env python3` falls back to the system Python — which has no PyObjC. The app crashes silently and the status bar icon never appears.
+
+Point the shebang at your venv Python with an absolute path:
 
 ```bash
 sed -i '' '1s|.*|#'"$(pwd)/.venv/bin/python3"'|' \
@@ -65,16 +75,18 @@ head -1 iTermDashboard.app/Contents/MacOS/itermdashboard
 # → #!/Applications/iterm-dashboard/.venv/bin/python3
 ```
 
-Now `open` works:
+Now `open` works, and so does autostart at login:
 
 ```bash
 open iTermDashboard.app
 ```
 
-> **Note:** `git pull` overwrites this change. Re-run the `sed` command after each pull, or add an alias:
+> **⚠️ `git pull` overwrites this.** The shebang lives in a tracked file, so every `git pull` resets it to `#!/usr/bin/env python3` and autostart breaks again silently. Re-run the `sed` command after each pull. To make this painless, add an alias:
 > ```bash
-> echo 'alias fix-shebang="sed -i '\'''\'' '\''1s|.*|#'"$(pwd)"'/.venv/bin/python3|'\'' iTermDashboard.app/Contents/MacOS/itermdashboard"' >> ~/.zshrc
+> echo "alias fix-shebang=\"sed -i '' '1s|.*|#!/Applications/iterm-dashboard/.venv/bin/python3|' /Applications/iterm-dashboard/iTermDashboard.app/Contents/MacOS/itermdashboard && echo 'shebang fixed'\"" >> ~/.zshrc
+> source ~/.zshrc
 > ```
+> Then after each pull: `fix-shebang && open /Applications/iterm-dashboard/iTermDashboard.app`
 
 ### 4. Launch on login (autostart)
 
